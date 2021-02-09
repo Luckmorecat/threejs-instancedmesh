@@ -91,7 +91,6 @@ function WebGLShadowMap( _renderer, _objects, maxTextureSize ) {
 		_state.setScissorTest( false );
 
 		// render depth map
-
 		for ( let i = 0, il = lights.length; i < il; i ++ ) {
 
 			const light = lights[ i ];
@@ -179,7 +178,7 @@ function WebGLShadowMap( _renderer, _objects, maxTextureSize ) {
 				shadow.updateMatrices( light, vp );
 
 				_frustum = shadow.getFrustum();
-
+				
 				renderObject( scene, camera, shadow.camera, light, this.type );
 
 			}
@@ -394,10 +393,14 @@ function WebGLShadowMap( _renderer, _objects, maxTextureSize ) {
 		const visible = object.layers.test( camera.layers );
 
 		if ( visible && ( object.isMesh || object.isLine || object.isPoints ) ) {
-
+			
 			if ( ( object.castShadow || ( object.receiveShadow && type === VSMShadowMap ) ) && ( ! object.frustumCulled || _frustum.intersectsObject( object ) ) ) {
 
 				object.modelViewMatrix.multiplyMatrices( shadowCamera.matrixWorldInverse, object.matrixWorld );
+	
+				if (object.isInstancedMesh) {
+					object.updateMatrixes( object.modelViewMatrix );
+				}
 
 				const geometry = _objects.update( object );
 				const material = object.material;

@@ -503,6 +503,7 @@ function WebGLProgram( renderer, cacheKey, parameters, bindingStates ) {
 
 			'#ifdef USE_INSTANCING',
 
+			'	attribute mat4 instanceMatrixModelView;',
 			'	attribute mat4 instanceMatrix;',
 
 			'#endif',
