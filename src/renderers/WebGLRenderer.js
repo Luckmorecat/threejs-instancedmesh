@@ -1289,6 +1289,10 @@ function WebGLRenderer( parameters ) {
 		object.modelViewMatrix.multiplyMatrices( camera.matrixWorldInverse, object.matrixWorld );
 		object.normalMatrix.getNormalMatrix( object.modelViewMatrix );
 
+		if (object.isInstancedMesh) {
+			object.updateMatrixes(object.modelViewMatrix);
+		}
+
 		if ( object.isImmediateRenderObject ) {
 
 			const program = setProgram( camera, scene, material, object );
