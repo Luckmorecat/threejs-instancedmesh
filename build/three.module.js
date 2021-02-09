@@ -12739,7 +12739,7 @@ var packing = "vec3 packNormalToRGB( const in vec3 normal ) {\n\treturn normaliz
 
 var premultiplied_alpha_fragment = "#ifdef PREMULTIPLIED_ALPHA\n\tgl_FragColor.rgb *= gl_FragColor.a;\n#endif";
 
-var project_vertex = "vec4 mvPosition = vec4( transformed, 1.0 );\n#ifdef USE_INSTANCING\n\tmvPosition = instanceMatrix * mvPosition;\n#endif\nmvPosition = modelViewMatrix * mvPosition;\ngl_Position = projectionMatrix * mvPosition;";
+var project_vertex = "vec4 mvPosition = vec4( transformed, 1.0 );\n#ifdef USE_INSTANCING\n\tmvPosition = instanceMatrixModelView * mvPosition;\n#else\n\tmvPosition = modelViewMatrix * mvPosition;\n#endif\ngl_Position = projectionMatrix * mvPosition;";
 
 var dithering_fragment = "#ifdef DITHERING\n\tgl_FragColor.rgb = dithering( gl_FragColor.rgb );\n#endif";
 
@@ -14110,9 +14110,10 @@ function WebGLBindingStates( gl, extensions, attributes, capabilities ) {
 
 					}
 
-				} else if ( name === 'instanceMatrix' ) {
+				} else if ( name === 'instanceMatrix' || name === 'instanceMatrixModelView' ) {
 
-					const attribute = attributes.get( object.instanceMatrix );
+					const attribute = attributes.get( object[name] );
+
 
 					// TODO Attribute may not be available on context restore
 
@@ -15344,6 +15345,7 @@ function WebGLObjects( gl, geometries, attributes, info ) {
 
 			}
 
+			attributes.update( object.instanceMatrixModelView, 34962 );
 			attributes.update( object.instanceMatrix, 34962 );
 
 			if ( object.instanceColor !== null ) {
@@ -15371,6 +15373,8 @@ function WebGLObjects( gl, geometries, attributes, info ) {
 		instancedMesh.removeEventListener( 'dispose', onInstancedMeshDispose );
 
 		attributes.remove( instancedMesh.instanceMatrix );
+		attributes.remove( instancedMesh.instanceMatrixModelView );
+
 
 		if ( instancedMesh.instanceColor !== null ) attributes.remove( instancedMesh.instanceColor );
 
@@ -16836,6 +16840,7 @@ function WebGLProgram( renderer, cacheKey, parameters, bindingStates ) {
 
 			'#ifdef USE_INSTANCING',
 
+			'	attribute mat4 instanceMatrixModelView;',
 			'	attribute mat4 instanceMatrix;',
 
 			'#endif',
@@ -18717,7 +18722,6 @@ function WebGLShadowMap( _renderer, _objects, maxTextureSize ) {
 		_state.setScissorTest( false );
 
 		// render depth map
-
 		for ( let i = 0, il = lights.length; i < il; i ++ ) {
 
 			const light = lights[ i ];
@@ -18805,7 +18809,7 @@ function WebGLShadowMap( _renderer, _objects, maxTextureSize ) {
 				shadow.updateMatrices( light, vp );
 
 				_frustum = shadow.getFrustum();
-
+				
 				renderObject( scene, camera, shadow.camera, light, this.type );
 
 			}
@@ -19020,10 +19024,14 @@ function WebGLShadowMap( _renderer, _objects, maxTextureSize ) {
 		const visible = object.layers.test( camera.layers );
 
 		if ( visible && ( object.isMesh || object.isLine || object.isPoints ) ) {
-
+			
 			if ( ( object.castShadow || ( object.receiveShadow && type === VSMShadowMap ) ) && ( ! object.frustumCulled || _frustum.intersectsObject( object ) ) ) {
 
 				object.modelViewMatrix.multiplyMatrices( shadowCamera.matrixWorldInverse, object.matrixWorld );
+	
+				if (object.isInstancedMesh) {
+					object.updateMatrixes( object.modelViewMatrix );
+				}
 
 				const geometry = _objects.update( object );
 				const material = object.material;
@@ -23780,7 +23788,6 @@ function WebGLRenderer( parameters ) {
 		}
 
 		if ( object.isInstancedMesh ) {
-
 			renderer.renderInstances( drawStart, drawCount, object.count );
 
 		} else if ( geometry.isInstancedBufferGeometry ) {
@@ -23964,7 +23971,6 @@ function WebGLRenderer( parameters ) {
 		if ( _clippingEnabled === true ) clipping.beginShadows();
 
 		const shadowsArray = currentRenderState.state.shadowsArray;
-
 		shadowMap.render( shadowsArray, scene, camera );
 
 		currentRenderState.setupLights();
@@ -24124,7 +24130,7 @@ function WebGLRenderer( parameters ) {
 					const material = object.material;
 
 					if ( Array.isArray( material ) ) {
-
+				
 						const groups = geometry.groups;
 
 						for ( let i = 0, l = groups.length; i < l; i ++ ) {
@@ -24141,7 +24147,7 @@ function WebGLRenderer( parameters ) {
 						}
 
 					} else if ( material.visible ) {
-
+					
 						currentRenderList.push( object, geometry, material, groupOrder, _vector3.z, null );
 
 					}
@@ -24211,6 +24217,10 @@ function WebGLRenderer( parameters ) {
 
 		object.modelViewMatrix.multiplyMatrices( camera.matrixWorldInverse, object.matrixWorld );
 		object.normalMatrix.getNormalMatrix( object.modelViewMatrix );
+
+		if (object.isInstancedMesh) {
+			object.updateMatrixes(object.modelViewMatrix);
+		}
 
 		if ( object.isImmediateRenderObject ) {
 
@@ -26316,6 +26326,8 @@ function InstancedMesh( geometry, material, count ) {
 	Mesh.call( this, geometry, material );
 
 	this.instanceMatrix = new BufferAttribute( new Float32Array( count * 16 ), 16 );
+	this.instanceMatrixModelView = new BufferAttribute( new Float32Array( count * 16 ), 16 );
+	this.instanceMatrixModelView.setUsage(DynamicDrawUsage);
 	this.instanceColor = null;
 
 	this.count = count;
@@ -26329,6 +26341,24 @@ InstancedMesh.prototype = Object.assign( Object.create( Mesh.prototype ), {
 	constructor: InstancedMesh,
 
 	isInstancedMesh: true,
+
+	updateMatrixes: function ( matrix ) {
+		// console.log('call update!!');
+		const mat4 = new Matrix4();
+		for (let index = 0; index < this.count; index++) {
+			mat4.identity();
+			this.getMatrixAt(index, mat4);
+
+			mat4.premultiply(matrix);
+			mat4.toArray(this.instanceMatrixModelView.array, index * 16);
+		}
+
+		this.instanceMatrixModelView.needsUpdate = true;
+	},
+
+	getMatrixPureAt: function ( index, matrix ) {
+		matrix.fromArray( this.instanceMatrixModelView.array, index * 16 );
+	},
 
 	copy: function ( source ) {
 
