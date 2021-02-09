@@ -27,7 +27,7 @@ function WebGLObjects( gl, geometries, attributes, info ) {
 
 			}
 
-			attributes.update( object.instanceMatrix, gl.ARRAY_BUFFER );
+			attributes.update( object.instanceMatrixModelView, gl.ARRAY_BUFFER );
 
 			if ( object.instanceColor !== null ) {
 
@@ -53,7 +53,7 @@ function WebGLObjects( gl, geometries, attributes, info ) {
 
 		instancedMesh.removeEventListener( 'dispose', onInstancedMeshDispose );
 
-		attributes.remove( instancedMesh.instanceMatrix );
+		attributes.remove( instancedMesh.instanceMatrixModelView );
 
 		if ( instancedMesh.instanceColor !== null ) attributes.remove( instancedMesh.instanceColor );
 

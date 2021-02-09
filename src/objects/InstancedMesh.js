@@ -1,6 +1,7 @@
 import { BufferAttribute } from '../core/BufferAttribute.js';
 import { Mesh } from './Mesh.js';
 import { Matrix4 } from '../math/Matrix4.js';
+import { DynamicDrawUsage } from '../constants.js';
 
 const _instanceLocalMatrix = new Matrix4();
 const _instanceWorldMatrix = new Matrix4();
@@ -13,7 +14,9 @@ function InstancedMesh( geometry, material, count ) {
 
 	Mesh.call( this, geometry, material );
 
-	this.instanceMatrix = new BufferAttribute( new Float32Array( count * 16 ), 16 );
+	this.instanceMatrix = new BufferAttribute( new Float64Array( count * 16 ), 16 );
+	this.instanceMatrixModelView = new BufferAttribute( new Float32Array( count * 16 ), 16 );
+	this.instanceMatrixModelView.setUsage(DynamicDrawUsage);
 	this.instanceColor = null;
 
 	this.count = count;
@@ -27,6 +30,23 @@ InstancedMesh.prototype = Object.assign( Object.create( Mesh.prototype ), {
 	constructor: InstancedMesh,
 
 	isInstancedMesh: true,
+
+	updateMatrixes: function ( matrix ) {
+		const mat4 = new Matrix4();
+		for (let index = 0; index < this.count; index++) {
+			mat4.identity();
+			this.getMatrixAt(index, mat4);
+
+			mat4.premultiply(matrix);
+			mat4.toArray(this.instanceMatrixModelView.array, index * 16);
+		}
+
+		this.instanceMatrixModelView.needsUpdate = true;
+	},
+
+	getMatrixPureAt: function ( index, matrix ) {
+		matrix.fromArray( this.instanceMatrixModelView.array, index * 16 );
+	},
 
 	copy: function ( source ) {
 

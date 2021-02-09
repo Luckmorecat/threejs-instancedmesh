@@ -5,9 +5,11 @@ vec4 mvPosition = vec4( transformed, 1.0 );
 
 	mvPosition = instanceMatrix * mvPosition;
 
-#endif
+#else
 
-mvPosition = modelViewMatrix * mvPosition;
+	mvPosition = modelViewMatrix * mvPosition;
+
+#endif
 
 gl_Position = projectionMatrix * mvPosition;
 `;
