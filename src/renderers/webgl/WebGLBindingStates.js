@@ -389,9 +389,9 @@
 
 					}
 
-				} else if ( name === 'instanceMatrix' ) {
+				} else if ( name === 'instanceMatrix' || name === 'instanceMatrixModelView' ) {
 
-					const attribute = attributes.get( object.instanceMatrixModelView );
+					const attribute = attributes.get( object[name] );
 
 
 					// TODO Attribute may not be available on context restore
