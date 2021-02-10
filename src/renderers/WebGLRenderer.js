@@ -1289,7 +1289,7 @@ function WebGLRenderer( parameters ) {
 
 		if ( object.isInstancedMesh ) {
 			object.updateMatrixes( object.modelViewMatrix );
-			objects.update( object );
+			attributes.update( object.instanceMatrixModelView, gl.ARRAY_BUFFER );
 		}
 
 		if ( object.isImmediateRenderObject ) {
