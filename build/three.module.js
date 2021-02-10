@@ -16841,7 +16841,7 @@ function WebGLProgram( renderer, cacheKey, parameters, bindingStates ) {
 			'#ifdef USE_INSTANCING',
 
 			'	attribute mat4 instanceMatrixModelView;',
-			'	attribute mat4 instanceMatrix;',
+			 ' attribute mat4 instanceMatrix;',
 
 			'#endif',
 
@@ -24218,8 +24218,9 @@ function WebGLRenderer( parameters ) {
 		object.modelViewMatrix.multiplyMatrices( camera.matrixWorldInverse, object.matrixWorld );
 		object.normalMatrix.getNormalMatrix( object.modelViewMatrix );
 
-		if (object.isInstancedMesh) {
-			object.updateMatrixes(object.modelViewMatrix);
+		if ( object.isInstancedMesh ) {
+			object.updateMatrixes( object.modelViewMatrix );
+			objects.update( object );
 		}
 
 		if ( object.isImmediateRenderObject ) {

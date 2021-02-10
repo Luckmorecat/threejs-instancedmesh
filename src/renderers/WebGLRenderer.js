@@ -857,7 +857,6 @@ function WebGLRenderer( parameters ) {
 		}
 
 		if ( object.isInstancedMesh ) {
-
 			renderer.renderInstances( drawStart, drawCount, object.count );
 
 		} else if ( geometry.isInstancedBufferGeometry ) {
@@ -1041,7 +1040,6 @@ function WebGLRenderer( parameters ) {
 		if ( _clippingEnabled === true ) clipping.beginShadows();
 
 		const shadowsArray = currentRenderState.state.shadowsArray;
-
 		shadowMap.render( shadowsArray, scene, camera );
 
 		currentRenderState.setupLights();
@@ -1201,7 +1199,7 @@ function WebGLRenderer( parameters ) {
 					const material = object.material;
 
 					if ( Array.isArray( material ) ) {
-
+				
 						const groups = geometry.groups;
 
 						for ( let i = 0, l = groups.length; i < l; i ++ ) {
@@ -1218,7 +1216,7 @@ function WebGLRenderer( parameters ) {
 						}
 
 					} else if ( material.visible ) {
-
+					
 						currentRenderList.push( object, geometry, material, groupOrder, _vector3.z, null );
 
 					}
@@ -1289,8 +1287,9 @@ function WebGLRenderer( parameters ) {
 		object.modelViewMatrix.multiplyMatrices( camera.matrixWorldInverse, object.matrixWorld );
 		object.normalMatrix.getNormalMatrix( object.modelViewMatrix );
 
-		if (object.isInstancedMesh) {
-			object.updateMatrixes(object.modelViewMatrix);
+		if ( object.isInstancedMesh ) {
+			object.updateMatrixes( object.modelViewMatrix );
+			objects.update( object );
 		}
 
 		if ( object.isImmediateRenderObject ) {
