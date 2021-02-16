@@ -1,4 +1,4 @@
-export default /* glsl */`
+export default /* glsl */ `
 #define PI 3.141592653589793
 #define PI2 6.283185307179586
 #define PI_HALF 1.5707963267948966
@@ -129,4 +129,107 @@ vec2 equirectUv( in vec3 dir ) {
 	return vec2( u, v );
 
 }
+
+
+// Special sum operation when a > b
+vec2 quickTwoSum(float a, float b) {
+#if defined(LUMA_FP64_CODE_ELIMINATION_WORKAROUND)
+  float sum = (a + b) * ONE;
+  float err = b - (sum - a) * ONE;
+#else
+  float sum = a + b;
+  float err = b - (sum - a);
+#endif
+  return vec2(sum, err);
+}
+
+// General sum operation
+vec2 twoSum(float a, float b) {
+  float s = (a + b);
+#if defined(LUMA_FP64_CODE_ELIMINATION_WORKAROUND)
+  float v = (s * ONE - a) * ONE;
+  float err = (a - (s - v) * ONE) * ONE * ONE * ONE + (b - v);
+#else
+  float v = s - a;
+  float err = (a - (s - v)) + (b - v);
+#endif
+  return vec2(s, err);
+}
+
+vec2 split(float a) {
+  const float SPLIT = 4097.0;
+  float t = a * SPLIT;
+#if defined(LUMA_FP64_CODE_ELIMINATION_WORKAROUND)
+  float a_hi = t * ONE - (t - a);
+  float a_lo = a * ONE - a_hi;
+#else
+  float a_hi = t - (t - a);
+  float a_lo = a - a_hi;
+#endif
+  return vec2(a_hi, a_lo);
+}
+
+vec2 split2(vec2 a) {
+  vec2 b = split(a.x);
+  b.y += a.y;
+  return b;
+}
+
+vec2 twoProd(float a, float b) {
+  float prod = a * b;
+  vec2 a_fp64 = split(a);
+  vec2 b_fp64 = split(b);
+  float err = ((a_fp64.x * b_fp64.x - prod) + a_fp64.x * b_fp64.y +
+    a_fp64.y * b_fp64.x) + a_fp64.y * b_fp64.y;
+  return vec2(prod, err);
+}
+vec2 sum_fp64(vec2 a, vec2 b) {
+  vec2 s, t;
+  s = twoSum(a.x, b.x);
+  t = twoSum(a.y, b.y);
+  s.y += t.x;
+  s = quickTwoSum(s.x, s.y);
+  s.y += t.y;
+  s = quickTwoSum(s.x, s.y);
+  return s;
+}
+
+
+
+vec2 mul_fp64(vec2 a, vec2 b) {
+  vec2 prod = twoProd(a.x, b.x);
+  // y component is for the error
+  prod.y += a.x * b.y;
+	#if defined(LUMA_FP64_HIGH_BITS_OVERFLOW_WORKAROUND)
+		prod = split2(prod);
+	#endif
+  prod = quickTwoSum(prod.x, prod.y);
+  prod.y += a.y * b.x;
+	#if defined(LUMA_FP64_HIGH_BITS_OVERFLOW_WORKAROUND)
+		prod = split2(prod);
+	#endif
+  prod = quickTwoSum(prod.x, prod.y);
+  return prod;
+}
+
+void vec4_dot_fp64(vec2 a[4], vec2 b[4], out vec2 out_val) {
+  vec2 v[4];
+  v[0] = mul_fp64(a[0], b[0]);
+  v[1] = mul_fp64(a[1], b[1]);
+  v[2] = mul_fp64(a[2], b[2]);
+  v[3] = mul_fp64(a[3], b[3]);
+  out_val = sum_fp64(sum_fp64(v[0], v[1]), sum_fp64(v[2], v[3]));
+}
+void mat4_vec4_mul_fp64(vec2 b[16], vec2 a[4], out vec2 out_val[4]) {
+  vec2 tmp[4];
+  for (int i = 0; i < 4; i++)
+  {
+    for (int j = 0; j < 4; j++)
+    {
+      tmp[j] = b[j + i * 4];
+    }
+    vec4_dot_fp64(a, tmp, out_val[i]);
+  }
+}
+
 `;
