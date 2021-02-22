@@ -20443,6 +20443,7 @@
 	function InstancedMesh(geometry, material, count) {
 		Mesh.call(this, geometry, material);
 		this.instanceMatrix = new BufferAttribute(new Float32Array(count * 16), 16);
+		this.instanceMatrixExpand = new Float64Array(count * 16);
 		this.instanceMatrixModelView = new BufferAttribute(new Float32Array(count * 16), 16);
 		this.instanceMatrixModelView.setUsage(DynamicDrawUsage);
 		this.instanceColor = null;
@@ -20454,7 +20455,6 @@
 		constructor: InstancedMesh,
 		isInstancedMesh: true,
 		updateMatrixes: function updateMatrixes(matrix) {
-			// console.log('call update!!');
 			var mat4 = new Matrix4();
 
 			for (var index = 0; index < this.count; index++) {
@@ -20480,7 +20480,7 @@
 			color.fromArray(this.instanceColor.array, index * 3);
 		},
 		getMatrixAt: function getMatrixAt(index, matrix) {
-			matrix.fromArray(this.instanceMatrix.array, index * 16);
+			matrix.fromArray(this.instanceMatrixExpand, index * 16);
 		},
 		raycast: function raycast(raycaster, intersects) {
 			var matrixWorld = this.matrixWorld;
@@ -20520,6 +20520,7 @@
 		},
 		setMatrixAt: function setMatrixAt(index, matrix) {
 			matrix.toArray(this.instanceMatrix.array, index * 16);
+			matrix.toArray(this.instanceMatrixExpand, index * 16);
 		},
 		updateMorphTargets: function updateMorphTargets() {},
 		dispose: function dispose() {

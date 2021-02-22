@@ -26237,6 +26237,7 @@ function InstancedMesh( geometry, material, count ) {
 	Mesh.call( this, geometry, material );
 
 	this.instanceMatrix = new BufferAttribute( new Float32Array( count * 16 ), 16 );
+	this.instanceMatrixExpand = new Float64Array(count * 16);
 	this.instanceMatrixModelView = new BufferAttribute( new Float32Array( count * 16 ), 16 );
 	this.instanceMatrixModelView.setUsage(DynamicDrawUsage);
 	this.instanceColor = null;
@@ -26254,7 +26255,6 @@ InstancedMesh.prototype = Object.assign( Object.create( Mesh.prototype ), {
 	isInstancedMesh: true,
 
 	updateMatrixes: function ( matrix ) {
-		// console.log('call update!!');
 		const mat4 = new Matrix4();
 		for (let index = 0; index < this.count; index++) {
 			mat4.identity();
@@ -26293,7 +26293,7 @@ InstancedMesh.prototype = Object.assign( Object.create( Mesh.prototype ), {
 
 	getMatrixAt: function ( index, matrix ) {
 
-		matrix.fromArray( this.instanceMatrix.array, index * 16 );
+		matrix.fromArray( this.instanceMatrixExpand, index * 16 );
 
 	},
 
@@ -26353,6 +26353,7 @@ InstancedMesh.prototype = Object.assign( Object.create( Mesh.prototype ), {
 	setMatrixAt: function ( index, matrix ) {
 
 		matrix.toArray( this.instanceMatrix.array, index * 16 );
+		matrix.toArray( this.instanceMatrixExpand, index * 16 );
 
 	},
 
