@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js gram test</title>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+		/>
+		<link type="text/css" rel="stylesheet" href="main.css" />
+		<style>
+			#addModelBtn {
+				position: fixed;
+				top: 10px;
+				width: 100px;
+				height: 50px;
+			}
+
+			#disposeModelBtn {
+				position: fixed;
+				top: 10px;
+				width: 100px;
+				height: 50px;
+				left: 110px;
+			}
+
+			#fillModelBtn {
+				position: fixed;
+				top: 10px;
+				width: 100px;
+				height: 50px;
+				left: 220px;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="info"></div>
+		<button id="addModelBtn">Add model</button>
+		<button id="disposeModelBtn">dispose</button>
+		<button id="fillModelBtn">fill</button>
+
+		<script type="module">
+			import * as THREE from "../build/three.module.js";
+			import { OrbitControls } from "./jsm/controls/OrbitControls.js";
+			import { GLTFLoader } from "./jsm/loaders/GLTFLoader.js";
+			import { DRACOLoader } from "./jsm/loaders/DRACOLoader.js";
+			import { measureVRAMSizeForModel } from "./helpers/vramMeasurer.js";
+			import { KTX2Loader } from "./jsm/loaders/KTX2Loader.js";
+			import { MeshoptDecoder } from "./jsm/libs/meshopt_decoder.module.js";
+
+			window.models = [];
+			window.currentVRAMUsage = 0;
+
+			const VRAM_LIMIT_MB = 450;
+			const VRAM_LIMIT = 1048576 * VRAM_LIMIT_MB;
+
+			class DynamicInstancedMesh {
+				material;
+				geometry;
+				mesh;
+				isColored;
+
+				color = new THREE.Color();
+				dummyObj = new THREE.Object3D();
+
+				count = 0;
+
+				instancedMesh;
+
+				constructor(mesh, isColored = false) {
+					this.mesh = mesh;
+					this.isColored = isColored;
+					this.material = Array.isArray(mesh.material)
+						? mesh.material.map((m) => {
+								const material = m.clone();
+								isColored && material.color && material.color.set("#ffffff");
+								return material;
+						  })
+						: mesh.material.clone();
+
+					if (isColored) {
+						if (!Array.isArray(this.material)) {
+							this.material.color && this.material.color.set("#ffffff");
+						}
+					}
+
+					this.geometry = new THREE.InstancedBufferGeometry();
+
+					THREE.BufferGeometry.prototype.copy.call(
+						this.geometry,
+						mesh.geometry
+					);
+				}
+
+				update = (count, forceUpdateSize = false) => {
+					if (count > this.count || !this.instancedMesh || forceUpdateSize) {
+						this.instancedMesh = this.allocInstancedMesh(count);
+						this.count = count;
+					}
+					const dummy = this.dummyObj;
+
+					for (let index = 0; index < count; index++) {
+						dummy.position.x = (index % 10) * 2;
+						dummy.position.z = Math.floor(index / 10) * 5;
+
+						dummy.updateMatrix();
+
+						dummy.matrix.multiply(this.mesh.matrixWorld);
+
+						this.instancedMesh.setMatrixAt(index, dummy.matrix);
+					}
+
+					// this.instancedMesh.instanceColor &&
+					// 	(this.instancedMesh.instanceColor.needsUpdate = true);
+					// this.instancedMesh.instanceMatrix.needsUpdate = true;
+
+					return this.instancedMesh;
+				};
+
+				getCount = () => this.count;
+
+				dispose = () => {
+					// disposeHierchy(this.dummyObj);
+					// this.instancedMesh && disposeHierchy(this.instancedMesh);
+				};
+
+				allocInstancedMesh = (count) => {
+					const instancedMesh = new THREE.InstancedMesh(
+						this.geometry,
+						this.material,
+						count
+					);
+
+					if (this.isColored) {
+						instancedMesh.setColorAt(0, this.color.set("#ffffff"));
+					}
+
+					instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+					return instancedMesh;
+				};
+			}
+
+			const loadGltf = (() => {
+				const gltfLoader = new GLTFLoader();
+				const dracoLoader = new DRACOLoader();
+				dracoLoader.setDecoderPath("https://static.upland.me/draco-coder/");
+
+				gltfLoader.setDRACOLoader(dracoLoader);
+
+				return (src) =>
+					new Promise((res, rej) => {
+						gltfLoader.load(src, res, undefined, rej);
+					});
+			})();
+
+			// const modelPromise = new Promise((res, rej) => {
+			// 	const model = loadGltf(
+			// 		// "https://static.upland.me/3d-models/halloween/decorations/Small%20Town%20House/Freakshow%20Clown/Uncanny/model.gltf"
+			// 		// "https://static.upland.me/3d-models/small_town_house_new/small_town1.gltf"
+			// 		"https://upland-image-dev.s3.amazonaws.com/3d-models/nflpa/mod/cmodel.glb"
+			// 	)
+			// 		.then(res)
+			// 		.catch(rej);
+			// });
+
+			function buildScene() {
+				let modelCount = 0;
+
+				const renderer = new THREE.WebGL1Renderer({
+					alpha: true,
+					antialias: true,
+				});
+
+				const loadGltfCompression = ((renderer) => {
+					const ktx2Loader = new KTX2Loader()
+						.setTranscoderPath("js/libs/basis/")
+						.detectSupport(renderer);
+
+					const loader = new GLTFLoader();
+					loader.setKTX2Loader(ktx2Loader);
+					loader.setMeshoptDecoder(MeshoptDecoder);
+
+					const dracoLoader = new DRACOLoader();
+					dracoLoader.setDecoderPath("https://static.upland.me/draco-coder/");
+
+					loader.setDRACOLoader(dracoLoader);
+
+					return (src) =>
+						new Promise((res, rej) => {
+							loader.load(src, res, undefined, rej);
+						});
+				})(renderer);
+
+				const camera = new THREE.PerspectiveCamera(
+					50,
+					window.innerWidth / window.innerHeight,
+					0.1,
+					1000
+				);
+
+				const controls = new OrbitControls(camera, renderer.domElement);
+				controls.maxDistance = 1000;
+				camera.position.z = 10;
+
+				renderer.setSize(window.innerWidth, window.innerHeight);
+
+				document.body.appendChild(renderer.domElement);
+
+				const light = new THREE.AmbientLight("#ffffff", 1);
+
+				const scene = new THREE.Scene();
+
+				scene.add(light);
+
+				scene.background = new THREE.Color(0xfff0f0);
+
+				renderer.setAnimationLoop(() => {
+					renderer.render(scene, camera);
+				});
+
+				{
+					const copyModel = (model) => {
+						const group = new THREE.Group().copy(model);
+
+						group.traverse((object) => {
+							// console.log("object", object);
+							if (object instanceof THREE.Mesh) {
+								if (!Array.isArray(object.material)) {
+									object.material = object.material.clone();
+								}
+							}
+						});
+
+						return group;
+					};
+
+					const removeMaterial = (model) => {
+						const group = new THREE.Group().copy(model);
+
+						group.traverse((object) => {
+							// console.log("object", object);
+							if (object instanceof THREE.Mesh) {
+								if (!Array.isArray(object.material)) {
+									object.material = new THREE.MeshBasicMaterial();
+								}
+							}
+						});
+
+						return group;
+					};
+
+					const removeTexture = (model) => {
+						const group = new THREE.Group().copy(model);
+
+						group.traverse((object) => {
+							// console.log("object", object);
+							if (object instanceof THREE.Mesh) {
+								if (!Array.isArray(object.material)) {
+									console.log("obj map", object.geometry);
+									// object.material.map = null;
+								}
+							}
+						});
+
+						return group;
+					};
+
+					const instancedMeshWay = (model, count) => {
+						const meshes = [];
+
+						model.updateWorldMatrix(false, true);
+						model.traverse((object) => {
+							if (object instanceof THREE.Mesh) {
+								meshes.push(object);
+							}
+						});
+
+						meshes.forEach((mesh) => {
+							const iMeshI = new DynamicInstancedMesh(mesh, false);
+							const iMesh = iMeshI.update(1000);
+
+							scene.add(iMesh);
+						});
+					};
+
+					async function addModel() {
+						// const model = await modelPromise;
+						// const model = await loadGltfCompression(
+						// 	// "https://static.upland.me/3d-models/halloween/decorations/Small%20Town%20House/Freakshow%20Clown/Uncanny/model.gltf"
+						// 	// "https://static.upland.me/3d-models/small_town_house_new/small_town1.gltf"
+						// 	"https://upland-image-dev.s3.amazonaws.com/3d-models/nflpa/mod/cmodel.glb"
+						// );
+						const model = await loadGltf(
+							"https://static.upland.me/3d-models/halloween/decorations/Small%20Town%20House/Freakshow%20Clown/Uncanny/model.gltf"
+							// "https://static.upland.me/3d-models/small_town_house_new/small_town1.gltf"
+							// "https://upland-image-dev.s3.amazonaws.com/3d-models/nflpa/mod/cmodel.glb"
+						);
+
+						const group = model.scene;
+						// const group = removeTexture(model.scene);
+
+						const modelVRAMSize = measureVRAMSizeForModel(group);
+						console.log("model vram", modelVRAMSize);
+						// if (currentVRAMUsage + modelVRAMSize > VRAM_LIMIT) {
+						// 	freeVRAM(currentVRAMUsage + modelVRAMSize - VRAM_LIMIT);
+						// }
+						currentVRAMUsage += modelVRAMSize;
+
+						group.position.x = (modelCount % 10) * 2;
+						group.position.z = Math.floor(modelCount / 10) * 5;
+
+						scene.add(group);
+
+						// instancedMeshWay(model.scene, 10);
+
+						models.push({ model: group, VRAMSize: modelVRAMSize });
+
+						modelCount++;
+					}
+
+					function freeVRAM(needAmount) {
+						const { model, VRAMSize } = models.shift();
+
+						model.parent.remove(model);
+						disposeObject(model);
+
+						currentVRAMUsage -= VRAMSize;
+
+						if (needAmount > VRAMSize) {
+							freeVRAM(needAmount - VRAMSize);
+						}
+					}
+
+					async function disposeModel() {
+						// const model = await modelPromise;
+
+						models.forEach((model) => {
+							scene.remove(model);
+							disposeObject(model);
+						});
+
+						models = [];
+						modelCount = 0;
+					}
+
+					function disposeObject(model) {
+						model.traverse((object) => {
+							if (object instanceof THREE.Mesh) {
+								if (!Array.isArray(object.material)) {
+									object.material.dispose();
+									object.material.map && object.material.map.dispose();
+								}
+								object.geometry.dispose();
+							}
+						});
+					}
+
+					document
+						.getElementById("addModelBtn")
+						.addEventListener("click", addModel);
+
+					document
+						.getElementById("disposeModelBtn")
+						.addEventListener("click", disposeModel);
+
+					window.fillModel = () => {
+						for (let index = 0; index < 10; index++) {
+							addModel();
+						}
+					};
+
+					document
+						.getElementById("fillModelBtn")
+						.addEventListener("click", window.fillModel);
+				}
+			}
+			buildScene();
+		</script>
+	</body>
+</html>
