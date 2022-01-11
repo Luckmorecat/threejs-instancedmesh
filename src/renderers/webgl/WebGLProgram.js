@@ -544,15 +544,15 @@ function WebGLProgram( renderer, cacheKey, parameters, bindingStates ) {
 			'		attribute vec3 morphNormal2;',
 			'		attribute vec3 morphNormal3;',
 
-			'	#else',
+			'	#endif',
 
+			'#endif',
+
+			'	#if !defined USE_MORPHNORMALS && !defined USE_INSTANCING',
 			'		attribute vec3 morphTarget4;',
 			'		attribute vec3 morphTarget5;',
 			'		attribute vec3 morphTarget6;',
 			'		attribute vec3 morphTarget7;',
-
-			'	#endif',
-
 			'#endif',
 
 			'#ifdef USE_SKINNING',
