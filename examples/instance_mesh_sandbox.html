@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>three.js webgl - instancing - performance</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link type="text/css" rel="stylesheet" href="main.css">
+	<style>
+		#gui {
+			position: fixed;
+			right: 0;
+			top: 0;
+		}
+
+		#container {
+
+		}
+	</style>
+</head>
+<body>
+
+<div id="gui"></div>
+<div id="container"></div>
+
+<script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+<script type="importmap">
+			{
+				"imports": {
+					"three": "../build/three.module.js"
+				}
+			}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</script>
+
+<script type="module">
+	import * as THREE from 'three';
+
+	import Stats from './jsm/libs/stats.module.js';
+	import {GUI} from './jsm/libs/lil-gui.module.min.js';
+
+	import {OrbitControls} from './jsm/controls/OrbitControls.js';
+	import {mergeBufferGeometries} from './jsm/utils/BufferGeometryUtils.js';
+	import {GLTFLoader} from './jsm/loaders/GLTFLoader.js';
+	import {DRACOLoader} from "./jsm/loaders/DRACOLoader.js";
+	import {CSM} from './jsm/csm/CSM.js';
+	import {CSMHelper} from './jsm/csm/CSMHelper.js';
+
+	const MODELS_MAP = {
+		"smallTown1": "https://static.upland.me/3d-models/small_town_house_new/small_town1.gltf"
+	}
+	const canvasContainer = document.getElementById('container');
+	const gltfLoader = (() => {
+		const loader = new GLTFLoader();
+		const dracoLoader = new DRACOLoader();
+		dracoLoader.setDecoderPath('/examples/js/libs/draco/');
+		loader.setDRACOLoader(dracoLoader);
+
+		return loader;
+	})()
+
+	function setupRenderer(renderer, opt) {
+
+
+		canvasContainer.appendChild(renderer.domElement);
+
+		renderer.setSize(opt.width, opt.height);
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.VSMShadowMap;
+
+		return renderer;
+	}
+
+	function instanceRenderer1(opt) {
+		return setupRenderer(new THREE.WebGL1Renderer({
+			alpha: true,
+			antialias: true
+		}), opt)
+	}
+
+	function instanceRenderer2(opt) {
+		return setupRenderer(new THREE.WebGLRenderer({
+			alpha: true,
+			antialias: true
+		}), opt)
+	}
+
+	const RENDERER_MAP = {
+		"renderer1": instanceRenderer1,
+		"renderer2": instanceRenderer2
+	}
+
+	function createGUI() {
+		const gui = new GUI({
+			container: document.getElementById('gui')
+		});
+
+		const obj = {
+			model: MODELS_MAP.smallTown1,
+			renderer: RENDERER_MAP.renderer1,
+			rendererWidth: window.innerWidth,
+			rendererHeight: window.innerHeight,
+			lightX: 1,
+			lightY: 1,
+			lightZ: 0,
+		}
+
+		gui.add(obj, 'model', MODELS_MAP);
+
+		const rendererFolder = gui.addFolder('Renderer');
+
+		rendererFolder.add(obj, 'renderer', RENDERER_MAP);
+		rendererFolder.add(obj, 'rendererWidth');
+		rendererFolder.add(obj, 'rendererHeight');
+
+		const lightFolder = gui.addFolder('Shadow light');
+
+		lightFolder.add(obj, 'lightX');
+		lightFolder.add(obj, 'lightY');
+		lightFolder.add(obj, 'lightZ');
+
+		return {gui, obj};
+	}
+
+	/**
+	 *
+	 * @param THREE.Scene scene
+	 */
+	function setupLight(target, config) {
+		const dLight = new THREE.DirectionalLight('#ffffff', 1);
+
+		dLight.position.set(config.lightX, config.lightY, config.lightZ);
+		dLight.castShadow = true;
+
+		const aLight = new THREE.AmbientLight('#fff1ff', 1);
+
+		target.scene.add(dLight);
+		target.scene.add(aLight);
+
+
+		return event => {
+			const config = event.object;
+			console.log('change', event);
+			switch (event.property) {
+				case 'lightX':
+				case 'lightY':
+				case 'lightZ': {
+					console.log('update dlight pos');
+					dLight.position.set(config.lightX, config.lightY, config.lightZ);
+					break;
+				}
+			}
+		}
+
+	}
+
+	function setupFloor(params, config, gui) {
+
+		const planeGeometry = new THREE.PlaneGeometry(200, 200);
+		const planeMaterial = new THREE.MeshPhongMaterial({
+			color: 0x095959,
+			shininess: 0,
+			specular: 0x111111
+		});
+
+		const ground = new THREE.Mesh(planeGeometry, planeMaterial);
+		ground.rotation.x = -Math.PI / 2;
+		ground.scale.multiplyScalar(3);
+		ground.castShadow = true;
+		ground.receiveShadow = true;
+		params.scene.add(ground);
+
+	}
+
+	function addModel(target, config, gui) {
+		gltfLoader.load(config.model, (gltf) => {
+
+
+			const createInstanceMesh = (mesh) => {
+				const geometry = mesh.geometry.clone();
+				const mat = mesh.material;
+
+				const iMesh = new THREE.InstancedMesh(geometry, mat, 1);
+				iMesh.setMatrixAt(0, new THREE.Matrix4().identity());
+				iMesh.castShadow = true;
+
+				return iMesh;
+			}
+
+			const meshGroup = new THREE.Group();
+			const arr = [];
+
+			console.log('gltf', gltf.scene.traverse);
+			gltf.scene.traverse(obj => {
+				if (obj.isMesh) {
+
+					obj.castShadow = true;
+
+					arr.push(createInstanceMesh(obj));
+					// arr.push(obj);
+				}
+			});
+
+			arr.forEach(mesh => meshGroup.add(mesh));
+
+			target.scene.add(meshGroup);
+
+		});
+	}
+
+	function createQueue(target, config, gui, queue) {
+		return function (item) {
+			const updater = item(target, config, gui);
+			if (updater) queue.push(updater);
+		}
+	}
+
+	function createSandbox() {
+		const {gui, obj} = createGUI();
+
+		const target = {}
+
+		target.renderer = obj.renderer({
+			width: obj.rendererWidth,
+			height: obj.rendererHeight
+		});
+
+		target.scene = new THREE.Scene();
+		target.camera = new THREE.PerspectiveCamera(45, obj.rendererWidth / obj.rendererHeight);
+		target.camera.position.z = 10;
+
+		target.control = new OrbitControls(target.camera, target.renderer.domElement);
+
+		const updaters = [];
+		const updatersQueue = createQueue(target, obj, gui, updaters);
+
+		updatersQueue(setupLight);
+		updatersQueue(setupFloor);
+		updatersQueue(addModel)
+
+
+		gui.onFinishChange((event) => {
+			const obj = event.object;
+			console.log('change', event);
+
+			switch (event.property) {
+				case 'rendererWidth':
+				case 'rendererHeight': {
+					target.renderer.setSize(obj.rendererWidth, obj.rendererHeight);
+					target.camera.aspect = obj.rendererWidth / obj.rendererHeight;
+					target.camera.updateProjectionMatrix();
+					break;
+				}
+
+				case 'renderer': {
+					canvasContainer.removeChild(target.renderer.domElement);
+					target.renderer.dispose();
+					target.renderer = obj.renderer({
+						width: obj.rendererWidth,
+						height: obj.rendererHeight
+					})
+				}
+			}
+
+			updaters.forEach(updater => updater(event));
+		})
+
+		startAnimation(target)();
+	}
+
+	/**
+	 *
+	 * @param {{ renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera, scene: THREE.Scene, control }} target
+
+	 */
+	function startAnimation(target) {
+
+		return function animate() {
+
+			requestAnimationFrame(animate);
+
+			target.renderer.clear();
+			target.renderer.render(target.scene, target.camera);
+			target.control.update()
+
+		}
+	}
+
+	createSandbox();
+
+</script>
+
+</body>
+</html>
