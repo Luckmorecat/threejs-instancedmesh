@@ -1251,6 +1251,11 @@ function WebGLRenderer( parameters = {} ) {
 		object.modelViewMatrix.multiplyMatrices( camera.matrixWorldInverse, object.matrixWorld );
 		object.normalMatrix.getNormalMatrix( object.modelViewMatrix );
 
+		if (object.isInstancedMesh) {
+			object.updateMatrixes(object.modelViewMatrix);
+			attributes.update( object.instanceMatrixModelView, gl.ARRAY_BUFFER );
+		}
+
 		material.onBeforeRender( _this, scene, camera, geometry, object, group );
 
 		if ( material.transparent === true && material.side === DoubleSide ) {

@@ -328,7 +328,8 @@
 
 				if ( geometryAttribute === undefined ) {
 
-					if ( name === 'instanceMatrix' && object.instanceMatrix ) geometryAttribute = object.instanceMatrix;
+					if ( name === 'instanceMatrix' && object.instanceMatrix || name === 'instanceMatrixModelView' && object.instanceMatrixModelView )
+						geometryAttribute = object.instanceMatrixModelView;
 					if ( name === 'instanceColor' && object.instanceColor ) geometryAttribute = object.instanceColor;
 
 				}
@@ -408,7 +409,6 @@
 								geometry._maxInstanceCount = geometryAttribute.meshPerAttribute * geometryAttribute.count;
 
 							}
-
 						} else {
 
 							for ( let i = 0; i < programAttribute.locationSize; i ++ ) {

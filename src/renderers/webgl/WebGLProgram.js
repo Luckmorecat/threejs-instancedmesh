@@ -503,6 +503,7 @@ function WebGLProgram( renderer, cacheKey, parameters, bindingStates ) {
 
 			'#ifdef USE_INSTANCING',
 
+			'	attribute mat4 instanceMatrixModelView;',
 			'	attribute mat4 instanceMatrix;',
 
 			'#endif',
@@ -547,8 +548,9 @@ function WebGLProgram( renderer, cacheKey, parameters, bindingStates ) {
 			'		attribute vec3 morphNormal2;',
 			'		attribute vec3 morphNormal3;',
 
-			'	#else',
+			'	#endif',
 
+			'	#if !defined USE_MORPHNORMALS && !defined USE_INSTANCING',
 			'		attribute vec3 morphTarget4;',
 			'		attribute vec3 morphTarget5;',
 			'		attribute vec3 morphTarget6;',

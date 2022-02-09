@@ -1,6 +1,7 @@
 import { InstancedBufferAttribute } from '../core/InstancedBufferAttribute.js';
 import { Mesh } from './Mesh.js';
 import { Matrix4 } from '../math/Matrix4.js';
+import { DynamicDrawUsage } from "../constants";
 
 const _instanceLocalMatrix = /*@__PURE__*/ new Matrix4();
 const _instanceWorldMatrix = /*@__PURE__*/ new Matrix4();
@@ -16,12 +17,32 @@ class InstancedMesh extends Mesh {
 		super( geometry, material );
 
 		this.instanceMatrix = new InstancedBufferAttribute( new Float32Array( count * 16 ), 16 );
+		this.instanceMatrixExpand = new Float64Array(count * 16);
+		this.instanceMatrixModelView = new InstancedBufferAttribute( new Float32Array( count * 16 ), 16 );
+		this.instanceMatrixModelView.setUsage( DynamicDrawUsage );
 		this.instanceColor = null;
 
 		this.count = count;
 
 		this.frustumCulled = false;
 
+	}
+
+	updateMatrixes ( matrix ) {
+		const mat4 = new Matrix4();
+		for (let index = 0; index < this.count; index++) {
+			mat4.identity();
+			this.getMatrixAt(index, mat4);
+
+			mat4.premultiply(matrix);
+			mat4.toArray(this.instanceMatrixModelView.array, index * 16);
+		}
+
+		this.instanceMatrixModelView.needsUpdate = true;
+	}
+
+	getMatrixPureAt( index, matrix ) {
+		matrix.fromArray( this.instanceMatrixModelView.array, index * 16 );
 	}
 
 	copy( source ) {
@@ -46,7 +67,7 @@ class InstancedMesh extends Mesh {
 
 	getMatrixAt( index, matrix ) {
 
-		matrix.fromArray( this.instanceMatrix.array, index * 16 );
+		matrix.fromArray( this.instanceMatrixExpand, index * 16 );
 
 	}
 
@@ -106,6 +127,7 @@ class InstancedMesh extends Mesh {
 	setMatrixAt( index, matrix ) {
 
 		matrix.toArray( this.instanceMatrix.array, index * 16 );
+		matrix.toArray( this.instanceMatrixExpand, index * 16 );
 
 	}
 

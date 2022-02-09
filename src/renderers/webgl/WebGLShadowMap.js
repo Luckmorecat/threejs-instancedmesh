@@ -331,6 +331,10 @@ function WebGLShadowMap( _renderer, _objects, _capabilities ) {
 
 				object.modelViewMatrix.multiplyMatrices( shadowCamera.matrixWorldInverse, object.matrixWorld );
 
+				if (object.isInstancedMesh) {
+					object.updateMatrixes( object.modelViewMatrix );
+				}
+
 				const geometry = _objects.update( object );
 				const material = object.material;
 
