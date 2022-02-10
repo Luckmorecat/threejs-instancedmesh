@@ -329,7 +329,7 @@
 				if ( geometryAttribute === undefined ) {
 
 					if ( name === 'instanceMatrix' && object.instanceMatrix || name === 'instanceMatrixModelView' && object.instanceMatrixModelView )
-						geometryAttribute = object.instanceMatrixModelView;
+						geometryAttribute = object[name];
 					if ( name === 'instanceColor' && object.instanceColor ) geometryAttribute = object.instanceColor;
 
 				}
